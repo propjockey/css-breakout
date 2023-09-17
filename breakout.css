@@ -596,6 +596,8 @@ body, .game { display: grid; overflow: hidden; accent-color: var(--c2-out); }
   --frame-out: 0;
   --points-total-out: 0;
   --lives-out: 3;
+  --level-in: 0;
+  --level-out: 0;
   /*
   START_GAME
   RESPAWN
