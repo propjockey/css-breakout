@@ -3,3 +3,10 @@
 # css-breakout
 
 Breakout implemented in 100% CSS
+
+Play it here!
+https://propjockey.github.io/css-breakout/
+
+[<img width="577" alt="screenshot of CSS Breakout" src="https://github.com/propjockey/css-breakout/assets/7545075/4d0073e5-fb4d-4875-8032-26dd1ee8f1dc">](
+https://propjockey.github.io/css-breakout/)
+
