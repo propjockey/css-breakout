@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>100% CSS Breakout by Jane Ori - PropJockey.io</title>
+    <link rel="stylesheet" type="text/css" href="./breakout.css">
+  </head>
+  <body>
+
+    <main class="game palette" data-bin-bits="c d e f b be">
+      <div class="board joyous-color" aria-hidden="true">
+        <div class="bricks">
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r7);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r6);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r5);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r4);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r3);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r2);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r1);"></div>
+          <div data-bin-bits="a" style="--bin-a-trunc: var(--r0);"></div>
+        </div>
+        <!-- div class="bit"></div -->
+        <div class="paddle"></div>
+      </div>
+    
+      <section class="board">
+        <div class="breaksplash"></div>
+        <div class="pj pj-lives"></div>
+        <div class="points"></div>
+        <section class="bricks">
+          <div data-points="7" data-bin-bits="a" style="--bin-a-trunc: var(--r7);">
+            <span class="byline-top-half">
+              100% CSS Breakout - ZERO JS by
+              <span class="img" aria-label="Jane Ori - PropJockey.io"></span>
+            </span>
+          </div>
+          <div data-points="7" data-bin-bits="a" style="--bin-a-trunc: var(--r6);">
+            <span class="byline-bottom-half">
+              100% CSS Breakout - ZERO JS by
+              <span class="img"></span>
+            </span>
+          </div>
+          <div data-points="5" data-bin-bits="a" style="--bin-a-trunc: var(--r5);"></div>
+          <div data-points="5" data-bin-bits="a" style="--bin-a-trunc: var(--r4);"></div>
+          <div data-points="3" data-bin-bits="a" style="--bin-a-trunc: var(--r3);"></div>
+          <div data-points="3" data-bin-bits="a" style="--bin-a-trunc: var(--r2);"></div>
+          <div data-points="1" data-bin-bits="a" style="--bin-a-trunc: var(--r1);"></div>
+          <div data-points="1" data-bin-bits="a" style="--bin-a-trunc: var(--r0);"></div>
+        </section>
+    
+        <div class="bit"></div>
+    
+        <div class="paddle"></div>
+      </section>
+    
+      <div class="control">
+        <ul class="io clock breakout guide">
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"><p><p><p><p></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io respawn menu-pallete phase-delay">
+          <li class="respawn-menu menu">
+            ~ Your little bit fell through the floor :( ~<br>
+            <br>
+            <br>
+            -1 <span class="respawn-img"></span>
+            <button class="respawn-button btn">Continue</button>
+            <button class="quit-button btn btn2">Exit to Main Menu</button>
+          </li>
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io start-game menu-pallete phase-delay">
+          <li class="start-menu menu">
+            ~ Guide your little bit through the ceiling! ~<br>
+            <label>
+              <input type="checkbox" id="constrain-toggle" checked>
+              Maintain Aspect Ratio
+            </label>
+            <button class="btn">Begin Breakout!</button>
+            <a class="cheats" href="#cheats">SHOW CHEATS</a>
+            <fieldset id="cheats">
+              <legend>Cheats</legend>
+              <label><input type="checkbox" id="paper-bricks"> Paper Bricks</label>
+              <label><input type="checkbox" id="infinite-lives"> Infinite Lives</label>
+              <label><input type="checkbox" id="zero-deaths"> Zero Deaths</label>
+            </fieldset>
+          </li>
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io next-level-prompt menu-pallete phase-delay">
+          <li class="next-level-menu menu">
+            ~ Excellent Guidance! ~<br>
+            ~ Your little bit is thrilled! Rejoice! ~<br>
+            <br>
+            <br>
+            <br>
+            <a href="#cheats" class="cheats-unlocker">
+              <span class="unlock">REWARD: Unlock Cheats For Your Next Breakout</span><br>
+              <span class="unlocked">Cheats available on the Main Menu!</span>
+            </a>
+            <button class="continue-button btn">Begin Next Level</button>
+            <button class="quit-button btn btn2">Exit to Main Menu</button>
+          </li>
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io next-level-sequence">
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io set-palette">
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture">
+            <p><p><p><p><p><p><p><p><p><p>
+          </li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io game-over-sequence menu-pallete phase-delay">
+          <li class="game-over-menu menu">
+            <p class="msg msg-1"></p>
+            <p class="msg msg-2"></p>
+            <p class="msg msg-3"></p>
+            <p class="msg msg-4"></p>
+            <p class="msg msg-5"></p>
+            <button class="quit-button btn btn2">Exit to Main Menu</button>
+          </li>
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <ul class="io game-complete-sequence menu-pallete phase-delay">
+          <li class="game-complete-menu menu">
+            <p class="msg msg-1"></p>
+            <p class="msg msg-2"></p>
+            <p class="msg msg-3"></p>
+            <p class="msg msg-4"></p>
+            <p class="msg msg-5"></p>
+            <p class="msg msg-6"></p>
+            <p class="msg msg-7"></p>
+            <a href="https://x.com/jane0ri" class="follow-button btn btn2" target="_blank">
+              Follow Jane Ori
+            </a>
+            <button class="quit-button btn">Exit to Main Menu</button>
+          </li>
+          <li class="phase-0"></li>
+          <li class="phase-1 phase-capture"></li>
+          <li class="phase-2 phase-hoist"></li>
+          <li class="phase-3 phase-hoist"></li>
+        </ul>
+        <section class="info-panel menu-pallete">
+          <label class="info-toggle btn"><input type="checkbox">Hide Info</label>
+          <div class="menu">
+            <a href="https://propjockey.io/" target="_blank" class="info-shield-badge"><img class="img" alt="Jane Ori - PropJockey.io" src="https://img.shields.io/badge/Jane%20Ori%20%F0%9F%91%BD-%F0%9F%A4%8D%20PropJockey.io-7300E6.svg?labelColor=FB04C2&style=plastic"></a>
+    
+            <label for="constrain-toggle">
+              Maintain Aspect Ratio
+            </label>
+            <div class="info-cheats">
+              <label for="paper-bricks"> Paper Bricks Cheat</label>
+              <label for="infinite-lives"> Infinite Lives Cheat</label>
+              <label for="zero-deaths"> Zero Deaths Cheat</label>
+            </div>
+            <label>
+              <input class="debug-info-toggle" type="checkbox"> Show Debug Info
+            </label>
+            <div class="info-links">
+              <a href="#" class="blog-link">Read About the CSS CPU Hack</a>
+              <a href="https://github.com/propjockey/css-breakout" aria-label="View the source on GitHub" class="gh-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              </a>
+              <a href="https://twitter.com/jane0ri" class="x-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" xml:space="preserve">
+                  <g style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;" transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
+                    <polygon points="24.89,23.01 57.79,66.99 65.24,66.99 32.34,23.01 " style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform="  matrix(1 0 0 1 0 0) "/>
+                    <path d="M 45 0 L 45 0 C 20.147 0 0 20.147 0 45 v 0 c 0 24.853 20.147 45 45 45 h 0 c 24.853 0 45 -20.147 45 -45 v 0 C 90 20.147 69.853 0 45 0 z M 56.032 70.504 L 41.054 50.477 L 22.516 70.504 h -4.765 L 38.925 47.63 L 17.884 19.496 h 16.217 L 47.895 37.94 l 17.072 -18.444 h 4.765 L 50.024 40.788 l 22.225 29.716 H 56.032 z" style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(0,0,0); fill-rule: nonzero; opacity: 1;" transform=" matrix(1 0 0 1 0 0) " stroke-linecap="round"/>
+                  </g>
+                </svg>
+              </a>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    
+    <ol class="css-screensize" aria-hidden="true"><li><li><p><p><p><p><li><li></ol>
+    
+  </body>
+</html>

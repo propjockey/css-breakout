@@ -1,0 +1,28 @@
+{
+  "name": "css-breakout",
+  "version": "1.0.0",
+  "description": "Breakout implemented in 100% CSS",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/propjockey/css-breakout.git"
+  },
+  "keywords": [
+    "css",
+    "breakout",
+    "game"
+  ],
+  "author": "Jane Ori",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/propjockey/css-breakout/issues"
+  },
+  "homepage": "https://github.com/propjockey/css-breakout#readme",
+  "dependencies": {
+    "css-bin-bits": "^0.0.2",
+    "css-screensize": "^1.0.0"
+  }
+}

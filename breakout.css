@@ -1,0 +1,1802 @@
+@import url("https://unpkg.com/css-screensize@1/screensize.css");
+@import url("https://unpkg.com/css-bin-bits@0.0.2/bin-bits.css");
+
+* {
+  box-sizing: border-box;
+  font-family: sans-serif;
+  margin: 0px;
+  padding: 0px;
+}
+
+html, body, .game, .board { height: 100%; }
+body, .game { display: grid; overflow: hidden; accent-color: var(--c2-out); }
+
+.game {
+  /* IO Sequence State Identifiers */
+  --CLOCK: 0;
+  --START_GAME: 10;
+  --RESPAWN: 15;
+  --SET_PALETTE: 20;
+  --NEXT_LEVEL_PROMPT: 25; /* after all bricks on all lines cleared */
+  --NEXT_LEVEL: 30;
+  --GAME_COMPLETE: calc(var(--SET_PALETTE) + var(--NEXT_LEVEL_PROMPT)); /* 45 */
+  --GAME_OVER: 100;
+  
+  --infinite-lives: 0;
+  --zero-deaths: 0;
+  --rip-through-mode: 0;
+  
+  --cheats-active-in: 0;
+  --cheats-active-out: calc(
+    var(--cheats-active-in) +
+    (1 - var(--cheats-active-in)) * min(1,
+      var(--infinite-lives) + var(--zero-deaths) + var(--rip-through-mode)
+    )
+  );
+
+  --constrain: 1;
+  --rows: calc(6 * 8 * 2);
+  --cols: calc(14 * 4);
+  --max-h: max(240,
+    (1 - var(--constrain)) * var(--height) +
+    var(--constrain) * min(
+      var(--height),
+      var(--width) / var(--cols) * var(--rows)
+    )
+  );
+  --max-w: calc(
+    var(--max-h) / var(--rows) * var(--cols) * var(--constrain) +
+    max(240 / var(--rows) * var(--cols), var(--width)) * (1 - var(--constrain))
+  );
+  --row-h: calc(var(--max-h) / var(--rows) * 1px);
+  --col-w: calc(var(--max-w) / var(--cols) * 1px);
+
+  --scaleX: calc(
+    (var(--max-w) / var(--cols)) / (var(--max-h) / var(--rows))
+  );
+
+  --frame-in: 0;
+  --frame-out: var(--frame-in);
+
+  --seq-in: var(--START_GAME);
+  --seq-out: var(--seq-in);
+
+  --palette-in: 0;
+  --palette-out: var(--palette-in);
+
+  --level-in: 0;
+  --level-out: var(--level-in);
+
+  --lives-in: 3;
+  --lives-out: var(--lives-in);
+
+  --brokethrough-in: 0;
+  --brokethrough-out: var(--brokethrough-in);
+  --broke-at-in: 0;
+  --broke-at-out: var(--broke-at-in);
+
+  --points-total-in: 0;
+  --points-total-out: var(--points-total-in);
+
+  --test-in: 0;
+  --test-out: var(--test-in);
+  
+  --can-break-in: 1;
+  --can-break-out: var(--can-break-in);
+  --can-guide-in: 1;
+  --can-guide-out: var(--can-guide-in);
+
+  --FULL_ROW: 16383; /* 0b 11 11 11 11 11 11 11 */
+  --r7: var(--FULL_ROW);
+  --r6: var(--FULL_ROW);
+  --r5: var(--FULL_ROW);
+  --r4: var(--FULL_ROW);
+  --r3: var(--FULL_ROW);
+  --r2: var(--FULL_ROW);
+  --r1: var(--FULL_ROW); /* 12291; 0b 11 00 00 00 00 00 11 */
+  --r0: var(--FULL_ROW); /* 7; 0b 00 00 00 00 00 01 11 (reversed in game) */
+  
+  --r7-out: var(--r7);
+  --r6-out: var(--r6);
+  --r5-out: var(--r5);
+  --r4-out: var(--r4);
+  --r3-out: var(--r3);
+  --r2-out: var(--r2);
+  --r1-out: var(--r1);
+  --r0-out: var(--r0);
+  
+  --MAX_X: 55;
+  --MAX_Y: 95;
+  --INIT_BIT_X: 27.5;
+  --INIT_BIT_Y: 45.5;
+  --INIT_SPEED: 1.5;
+  --INIT_DIR: -45deg;
+  --MAX_DELTA_Y: 1.9;
+  --MAX_DELTA_X: 3.9;
+  --MAX_SPEED: 6;
+  /* different max deltas per axis effectively alters DIR just by increasing speed... */
+  --bit-x-in: var(--INIT_BIT_X); /* 0 to 55 */
+  --bit-x-out: var(--bit-x-in);
+  --bit-y-in: var(--INIT_BIT_Y); /* 0 to 95 */
+  --bit-y-out: var(--bit-y-in);
+  --bit-speed-in: var(--INIT_SPEED);
+  --bit-speed-out: var(--bit-speed-in);
+  --bit-dir-in: var(--INIT_DIR);
+  --bit-dir-out: var(--bit-dir-in);
+  
+  --INIT_GUIDE_X: 26; /* range is -1 to 53 (same global grid +- 1) */
+  --INIT_GUIDE_Y: 89; /* always (could play with that though) at 89 and 90 (height is 2) */
+  --guide-x-in: var(--INIT_GUIDE_X);
+  --guide-y-in: var(--INIT_GUIDE_Y);
+  --guide-x-out: var(--guide-x-in);
+  --guide-y-out: var(--guide-y-in);
+  --prev-guidexin-in: var(--guide-x-in);
+  --prev-guidexin-out: var(--prev-guidexin-in);
+}
+.guide .phase-capture > * { position: absolute; top: 0px; bottom: 0px; opacity: 0; }
+.guide .phase-capture :nth-child(1) {
+  left: 0px;
+  width: calc(50vw - (var(--cols) / 2 + 1 - var(--guide-x-in)) * var(--col-w));
+  background: rgba(255, 0, 0, 0.5);
+}
+.guide .phase-capture :nth-child(2) {
+  left: calc(50vw - (var(--cols) / 2 + 1 - var(--guide-x-in)) * var(--col-w));
+  width: calc(2 * var(--col-w));
+  background: rgba(0, 255, 0, 0.5);
+}
+.guide .phase-capture :nth-child(3) {
+  left: calc(50vw - (var(--cols) / 2 - 3 - var(--guide-x-in)) * var(--col-w));
+  width: calc(2 * var(--col-w));
+  background: rgba(0, 255, 0, 0.5);
+}
+.guide .phase-capture :nth-child(4) {
+  left: calc(50vw - (var(--cols) / 2 - 5 - var(--guide-x-in)) * var(--col-w));
+  width: calc(100vw - (50vw - (var(--cols) / 2 - 5 - var(--guide-x-in)) * var(--col-w)));
+  background: rgba(255, 0, 250, 0.5);
+}
+
+.game:has(.guide .phase-capture :nth-child(1):hover) {
+  --guide-x-out: max(-1, var(--guide-x-in) - 4);
+}
+.game:has(.guide .phase-capture :nth-child(2):hover) {
+  --guide-x-out: max(-1, var(--guide-x-in) - 1);
+}
+.game:has(.guide .phase-capture :nth-child(3):hover) {
+  --guide-x-out: min(53, var(--guide-x-in) + 1);
+}
+.game:has(.guide .phase-capture :nth-child(4):hover) {
+  --guide-x-out: min(53, var(--guide-x-in) + 4);
+}
+
+.game:has(#constrain-toggle:not(:checked)) {
+  --constrain: 0;
+}
+.game:has(#paper-bricks:checked) {
+  --rip-through-mode: 1;
+}
+.game:has(#infinite-lives:checked) {
+  --infinite-lives: 1;
+}
+.game:has(#zero-deaths:checked) {
+  --zero-deaths: 1;
+}
+
+.game:has(.breakout .phase-1:hover) {
+  /*
+  // delta = sin(var(--bit-dir-in) + 90deg) * var(--bit-speed-in)
+  // sign = ((raw delta gte 0) - 0.5) * 2 // either -1 or 1
+  // abs_delta = max(delta, -1 * delta)
+  // pick_delta = min(MAX_DELTA_-, abs_delta)
+  // use delta = sign * pick_delta
+  */
+  --bit-x-raw-delta: calc(sin(var(--bit-dir-in) + 90deg) * var(--bit-speed-in));
+  --bit-x-delta-sign: calc(1 + max(-1, min(0, 100000 * var(--bit-x-raw-delta))) * 2);
+  --bit-x-use-delta: calc(
+    var(--bit-x-delta-sign) * min(
+      var(--MAX_DELTA_X),
+      max(var(--bit-x-raw-delta), -1 * var(--bit-x-raw-delta))
+    )
+  );
+  --bit-x-next: calc(var(--bit-x-in) + var(--bit-x-use-delta));
+  
+  --bit-x-clamped: clamp(0, var(--bit-x-next), var(--MAX_X));
+
+  --bit-y-raw-delta: calc(cos(var(--bit-dir-in) + 90deg) * var(--bit-speed-in));
+  --bit-y-delta-sign: calc(1 + max(-1, min(0, 100000 * var(--bit-y-raw-delta))) * 2);
+  --bit-y-use-delta: calc(
+    var(--bit-y-delta-sign) * min(
+      var(--MAX_DELTA_Y),
+      max(var(--bit-y-raw-delta), -1 * var(--bit-y-raw-delta))
+    )
+  );
+  --bit-y-next: calc(var(--bit-y-in) + var(--bit-y-use-delta));
+  
+  --bit-y-clamped: clamp(0, var(--bit-y-next), var(--MAX_Y));
+
+  /* brick collisions:
+    can only collide once after hitting the roof or hitting the guide paddle thing
+    after collision, it can pass through bricks
+    collision always mirrors dir over the X axis (? not quite ... though I can't tell)
+    if Y-out - bit-height / 2 is in a row, break if:
+    X-out + bit-width / 2 is inside a brick
+    else keep moving
+  
+    bricks top = calc(var(--row-h) * 8 * 2)
+    bricks height = calc(var(--row-h) * 8 * 2)
+    --bit-on-brick-wall = centerY > topOfBricks && centerY < bottomOfBricks
+  */
+  --bit-y-center: calc(var(--bit-y-clamped) + 0.5);
+  --bit-x-center: calc(var(--bit-x-clamped) + 0.5);
+  --brick-wall-t-and-h: 16; /* 8 * 2, don't need or want <length>s here */
+  --bit-y-rel-to-brick-top: calc(var(--bit-y-center) - var(--brick-wall-t-and-h));
+  --bit-on-brick-wall: calc(
+    (-1 * max(-1, min(0, -100000 * (
+      var(--bit-y-rel-to-brick-top)
+    )))) *
+    (-1 * max(-1, min(0, 100000 * (
+      var(--bit-y-center) - (var(--brick-wall-t-and-h) * 2)
+    ))))
+  );
+  --INTdex: calc(var(--bit-y-rel-to-brick-top) / var(--brick-wall-t-and-h) * 8 - 0.5);
+  --row-val: calc(
+    var(--can-break-in) *
+    var(--bit-on-brick-wall) * (
+      (1 + max(-1, 10000 * min(var(--INTdex) - 0, 0 - var(--INTdex)))) * var(--r7) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 1, 1 - var(--INTdex)))) * var(--r6) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 2, 2 - var(--INTdex)))) * var(--r5) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 3, 3 - var(--INTdex)))) * var(--r4) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 4, 4 - var(--INTdex)))) * var(--r3) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 5, 5 - var(--INTdex)))) * var(--r2) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 6, 6 - var(--INTdex)))) * var(--r1) +
+      (1 + max(-1, 10000 * min(var(--INTdex) - 7, 7 - var(--INTdex)))) * var(--r0)
+    )
+  );
+
+  --INTdex2: calc(var(--bit-x-center) / (var(--MAX_X) + 1) * 14 - 0.5);
+
+  --bin-e-trunc: var(--row-val);
+  --brick-collision: calc(
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 0, 0 - var(--INTdex2)))) * var(--bin-e-1) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 1, 1 - var(--INTdex2)))) * var(--bin-e-2) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 2, 2 - var(--INTdex2)))) * var(--bin-e-3) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 3, 3 - var(--INTdex2)))) * var(--bin-e-4) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 4, 4 - var(--INTdex2)))) * var(--bin-e-5) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 5, 5 - var(--INTdex2)))) * var(--bin-e-6) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 6, 6 - var(--INTdex2)))) * var(--bin-e-7) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 7, 7 - var(--INTdex2)))) * var(--bin-e-8) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 8, 8 - var(--INTdex2)))) * var(--bin-e-9) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 9, 9 - var(--INTdex2)))) * var(--bin-e-10) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 10, 10 - var(--INTdex2)))) * var(--bin-e-11) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 11, 11 - var(--INTdex2)))) * var(--bin-e-12) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 12, 12 - var(--INTdex2)))) * var(--bin-e-13) +
+    (1 + max(-1, 10000 * min(var(--INTdex2) - 13, 13 - var(--INTdex2)))) * var(--bin-e-14)
+  );
+
+  --bin-f-trunc: var(--brick-collision);
+  --bin-f-shift: var(--INTdex2);
+  
+  --bin-b-trunc: var(--bin-f-LEFT);
+  
+  --bin-be-op: var(--bin-XOR);
+  /* now --bin-be-VAL =
+    ( --brick-collision[0|1] shifted-left --INTdex2[0,13] ) XOR --row-val[bin-e-VAL]
+  */
+  
+  --r7-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 0, 0 - var(--INTdex))))
+  );
+  --r7-out: calc(
+    var(--r7-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r7-needs-update)) * var(--r7)
+  );
+  
+  --r6-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 1, 1 - var(--INTdex))))
+  );
+  --r6-out: calc(
+    var(--r6-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r6-needs-update)) * var(--r6)
+  );
+  
+  --r5-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 2, 2 - var(--INTdex))))
+  );
+  --r5-out: calc(
+    var(--r5-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r5-needs-update)) * var(--r5)
+  );
+  
+  --r4-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 3, 3 - var(--INTdex))))
+  );
+  --r4-out: calc(
+    var(--r4-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r4-needs-update)) * var(--r4)
+  );
+  
+  --r3-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 4, 4 - var(--INTdex))))
+  );
+  --r3-out: calc(
+    var(--r3-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r3-needs-update)) * var(--r3)
+  );
+  
+  --r2-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 5, 5 - var(--INTdex))))
+  );
+  --r2-out: calc(
+    var(--r2-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r2-needs-update)) * var(--r2)
+  );
+  
+  --r1-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 6, 6 - var(--INTdex))))
+  );
+  --r1-out: calc(
+    var(--r1-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r1-needs-update)) * var(--r1)
+  );
+  
+  --r0-needs-update: calc(var(--brick-collision) *
+    (1 + max(-1, 10000 * min(var(--INTdex) - 7, 7 - var(--INTdex))))
+  );
+  --r0-out: calc(
+    var(--r0-needs-update) * var(--bin-be-VAL) +
+    (1 - var(--r0-needs-update)) * var(--r0)
+  );
+  
+  /* if you brokethrough; transition this value from 1 up to 100 then stay there */
+  --has-broke-through: calc(-1 * max(-1, min(0, 1000 * (
+    var(--r7-out) - var(--FULL_ROW)
+  ))));
+  --brokethrough-out: calc(
+    var(--has-broke-through) *
+    min(100, var(--brokethrough-in) + 1)
+  );
+
+  --broke-at-out: calc(
+    /* previously did not break through && has broke through now, set to current */
+    (1 - min(1, var(--brokethrough-in))) *
+    var(--has-broke-through) *
+    (var(--INTdex2) * 4 + 2) +
+    /* else set = previously DID break through already && previous index */
+    min(1, var(--brokethrough-in)) * var(--broke-at-in)
+  );
+
+  /* pretend guide is 2 wider (1 overflow each side) so it doesn't seem to pass through corners */
+  --bit-guide-collision: calc(
+    var(--can-guide-in) *
+    (1 + max(-1, min(0,  100000 * (var(--bit-x-center) - (var(--guide-x-out) - 1))))) *
+    (1 + max(-1, min(0, -100000 * (var(--bit-x-center) - (var(--guide-x-out) + 5))))) *
+    (1 + max(-1, min(0,  100000 * (var(--bit-y-center) - var(--guide-y-out))))) *
+    (1 + max(-1, min(0, -100000 * (var(--bit-y-center) - (var(--guide-y-out) + 3)))))
+  );
+  /* -1 to 1 <number> dir scale */
+  --bit-guide-x-collision-dir: calc(
+    var(--bit-guide-collision) * (
+      ((var(--bit-x-center) - var(--guide-x-out)) / 6 - 0.5) * 2
+    )
+  );
+  
+  /* --bit-moving-x-dir: clamp(-1, 1000 * (var(--bit-x-next) - var(--bit-x-in)), 1); */
+
+  /* 0 friction reflection */
+  --bit-x-out: calc(
+    var(--bit-x-clamped) -
+    (var(--bit-x-next) - var(--bit-x-clamped))
+  );
+
+  --top-to-bottom: calc(
+    -1 * max(-1, min(0, 100000 * (var(--bit-y-in) - var(--bit-y-next))))
+  );
+  /* if brick-collision, clamp Y to the brick so it reflects */
+  --bit-y-clamped-collision: calc(
+    var(--brick-collision) * (
+      var(--top-to-bottom) * clamp(
+        0,
+        var(--bit-y-next),
+        var(--brick-wall-t-and-h) - 0.5 + var(--INTdex) * 2
+      ) +
+      (1 - var(--top-to-bottom)) * clamp(
+        var(--brick-wall-t-and-h) - 0.5 + (var(--INTdex) + 1) * 2,
+        var(--bit-y-next),
+        var(--MAX_Y)
+      )
+    ) +
+    (1 - var(--brick-collision)) * var(--bit-y-clamped)
+  );
+
+  --use-y-clamp: calc(
+    var(--rip-through-mode) * var(--bit-y-clamped) +
+    (1 - var(--rip-through-mode)) * var(--bit-y-clamped-collision)
+  );
+
+  /* 0 friction reflection */
+  --bit-y-out: calc(
+    var(--use-y-clamp) -
+    (var(--bit-y-next) - var(--use-y-clamp))
+  );
+  
+  --bit-x-wall-collided: calc(-1 * max(-1, 100000 * min(
+    var(--bit-x-next) - var(--bit-x-clamped),
+    var(--bit-x-clamped) - var(--bit-x-next)
+  )));
+
+  --y-collision: calc(-1 * max(-1, 100000 * min(
+    var(--bit-y-next) - var(--use-y-clamp),
+    var(--use-y-clamp) - var(--bit-y-next)
+  )));
+
+  --both-collision: calc(
+    var(--bit-x-wall-collided) * var(--y-collision)
+  );
+  --no-collision: calc(
+    1 - min(1, var(--bit-x-wall-collided) + var(--y-collision))
+  );
+  --only-x-collision: calc((1 - var(--both-collision)) * var(--bit-x-wall-collided));
+  --only-y-collision: calc((1 - var(--both-collision)) * var(--y-collision));
+
+  --bit-dir-next: calc(
+    var(--only-x-collision) * (180deg - var(--bit-dir-in)) +
+    var(--only-y-collision) * var(--bit-dir-in) * -1 +
+    var(--both-collision) * (180deg - var(--bit-dir-in)) * -1 +
+    var(--no-collision) * var(--bit-dir-in)
+  );
+
+  /* -1 to -0.25 -> 140deg to 100deg, 0.25 to 1 -> 80deg to 40deg, else reflect */
+  --bit-dir-out: calc(
+    var(--bit-guide-collision) * (
+      clamp(0, (var(--bit-guide-x-collision-dir) - 0.25) * 10000, 1) * (
+        80deg - (40deg * (var(--bit-guide-x-collision-dir) - 0.25) * 4 / 3)
+      ) +
+      clamp(-1, (var(--bit-guide-x-collision-dir) + 0.25) * 10000, 0) * -1 * (
+        100deg - (40deg * (var(--bit-guide-x-collision-dir) + 0.25) * 4 / 3)
+      ) + (
+        (1 - clamp(0, (var(--bit-guide-x-collision-dir) - 0.25) * 10000, 1)) *
+        (1 - clamp(-1, (var(--bit-guide-x-collision-dir) + 0.25) * 10000, 0) * -1) * (
+          var(--bit-dir-in) * -1
+        )
+      )
+    ) +
+    (1 - var(--bit-guide-collision)) * var(--bit-dir-next)
+  );
+
+  /*
+  // if !on the wall, can-break-out = true
+  // else (is on the wall) (
+  //   if there was a BRICK collision, can-break-out = rip-through-mode
+  //   else (no BRICK collision), can-break-out = can-break-in
+  // )
+  */
+  --can-break-out: calc(
+    (1 - var(--bit-on-brick-wall)) +
+    var(--bit-on-brick-wall) * (
+      var(--brick-collision) * var(--rip-through-mode) +
+      (1 - var(--brick-collision)) * var(--can-break-in)
+    )
+  );
+  --bit-above-guide: calc(-1 * max(-1, min(0,  100000 * (var(--bit-y-out) - var(--guide-y-out)))));
+  --can-guide-out: calc(
+    var(--bit-above-guide) +
+    (1 - var(--bit-above-guide)) * (
+      (1 - var(--bit-guide-collision)) * var(--can-guide-in)
+    )
+  );
+  --prev-guidexin-out: var(--guide-x-in);
+  
+  /* (-8 to 8) + (-4 to 4) if moving the same direction, last frame counts double */
+  --current-guide-speed: calc(
+    (var(--guide-x-out) - var(--prev-guidexin-in)) +
+    (var(--guide-x-out) - var(--guide-x-in))
+  );
+  --cgs-abs-scale: calc(
+    max(
+      var(--current-guide-speed),
+      -1 * var(--current-guide-speed)
+    ) / 12
+  );
+  --bit-guide-hit-in-middle: calc(1 - clamp(0, 10000 * (
+    max(var(--bit-guide-x-collision-dir), -1 * var(--bit-guide-x-collision-dir)) - 1 / 2
+  ), 1));
+  --bit-hit-slow-guide-mid: calc(
+    var(--bit-guide-hit-in-middle) * (
+      1 + max(-1, min(0, -100000 * (var(--cgs-abs-scale) - 0.17)))
+    )
+  );
+  /*
+  // if hit (else 0) and (^^^ hit in middle of the guide AND guide speed was slow (0.17 or less)),
+  // then bit-speed-delta is negative by 1/4 initial speed, else positive scaled by guide speed
+  // max-speed-change = var(--INIT_SPEED) / 2
+  */
+  --bit-speed-delta: calc(
+    var(--bit-guide-collision) * (
+      -1 * var(--bit-hit-slow-guide-mid) * var(--INIT_SPEED) / 8 +
+      (1 - var(--bit-hit-slow-guide-mid)) * var(--cgs-abs-scale) * var(--INIT_SPEED) / 2
+    )
+  );
+  /* minimum speed increases with number of points up to a max of +1 at the start of level 3 */
+  --bit-speed-out: clamp(
+    var(--INIT_SPEED) + min(2, var(--points-total-in) / 448) / 2, (
+      var(--bit-speed-in) + var(--bit-speed-delta)
+    ), var(--MAX_SPEED)
+  );
+  
+  --test-out: calc(var(--bit-speed-out) * 100000);
+  /*
+  // todo: register --current-guide-speed var
+  // if headon, slow down
+  // if guide still, don't change
+  // if same dir, speed up
+  // var(--guide-current-dir) // -1, 0, or 1
+  // var(--bit-guide-x-collision-dir) // [-1.0 to 1.0] dir scalar
+  */
+
+  /* extra life every level, max lives 6 */
+  --bit-needs-our-help: calc(
+    (1 - var(--zero-deaths)) *
+    (1 + max(-1, min(0, 100000 * (
+      var(--bit-y-next) - var(--MAX_Y)
+    ))))
+  );
+  --lives-out: min(6,
+    var(--lives-in) +
+    var(--level-changed) -
+    var(--bit-needs-our-help) * (1 - var(--infinite-lives))
+  );
+
+  --row-points-INTdex: calc(var(--INTdex, 0) / 2 - 0.5);
+
+  --points-total-out: calc(
+    var(--points-total-in) +
+    var(--brick-collision) * ((3 - var(--row-points-INTdex)) * 2 + 1)
+  );
+  
+  --bin-c-trunc: (var(--points-total-out) / 45);
+  --bin-c-mod: 10; /* every 45 pts, goto next palette of 10. 448 pts is max/lvl */
+  --palette-out: var(--bin-c-MOD, 0);
+
+  --palette-changed: calc(-1 * max(-1, 100000 * min(
+    var(--palette-in) - var(--palette-out),
+    var(--palette-out) - var(--palette-in)
+  )));
+
+  --bin-d-trunc: var(--points-total-out);
+  --bin-d-mod: 448; /* every 448pts is max per lvl */
+ 
+  --level-out: calc(
+    (var(--bin-d-trunc) - var(--bin-d-MOD, 0)) / var(--bin-d-mod)
+  );
+  --level-changed: calc(-1 * max(-1, 100000 * min(
+    var(--level-in) - var(--level-out),
+    var(--level-out) - var(--level-in)
+  )));
+
+  /* todo: at level=5 (2240pts) --seq-out is procucing an unaccounted for SEQ */
+  /* because level changes from 4 to 5 AND palette changes from 9 to 0 */
+  /* original Woz game only had 2 levels soooooooooooo mayyybe... */
+  /* we'll say that ^ SEQ = Win / Game Complete (after 5 levels (0,1,2,3,4))?! */
+  /* TODO: ^ Yes, great idea. */
+  --seq-out: calc(
+    var(--palette-changed) * var(--SET_PALETTE) +
+    var(--level-changed) * var(--NEXT_LEVEL_PROMPT) +
+    var(--bit-needs-our-help) * (
+      min(1, var(--lives-out)) * var(--RESPAWN) +
+      (1 - min(1, var(--lives-out))) * var(--GAME_OVER)
+    )
+  );
+}
+.game:has(.menu-pallete:hover) {
+  --c1-out: #7c567e;
+  --c2-out: #7300E6;
+  --c3-out: #FB04C2;
+}
+.game:has(.start-game:hover) {
+  --seq-out: var(--NEXT_LEVEL);
+  --frame-out: 0;
+  --points-total-out: 0;
+  --lives-out: 3;
+  /*
+  START_GAME
+  RESPAWN
+  SET_PALETTE
+  NEXT_LEVEL_PROMPT
+  NEXT_LEVEL
+  GAME_COMPLETE
+  GAME_OVER
+  */
+}
+.game:has(.start-game:hover button:focus) {
+  --cheats-active-out: 0;
+}
+.game:has(.respawn:hover) {
+  --seq-out: var(--SET_PALETTE);
+}
+.game:has(.clock .phase-capture:hover) {
+  --frame-out: calc(var(--frame-in) + 1);
+}
+.game:has(.set-palette:hover) {
+  --seq-out: var(--CLOCK);
+}
+
+.game:has(.next-level-prompt:hover) {
+  --seq-out: var(--NEXT_LEVEL);
+}
+.game:has(.game-complete-sequence:hover button:focus),
+.game:has(.game-over-sequence:hover button:focus),
+.game:has(.respawn:hover button:focus),
+.game:has(.next-level-sequence:hover) {
+  --bit-x-out: var(--INIT_BIT_X);
+  --bit-y-out: var(--INIT_BIT_Y);
+  --bit-speed-out: var(--INIT_SPEED);
+  --bit-dir-out: var(--INIT_DIR);
+  --guide-x-out: var(--INIT_GUIDE_X);
+  --guide-y-out: var(--INIT_GUIDE_Y);
+}
+.game:has(.game-complete-sequence:hover button:focus),
+.game:has(.game-over-sequence:hover button:focus),
+.game:has(.next-level-prompt:hover .quit-button:focus),
+.game:has(.respawn:hover .quit-button:focus),
+.game:has(.next-level-sequence:hover) {
+  --seq-out: var(--SET_PALETTE); /* TODO: fancy rebuild rows sequence? */
+  
+  --r7-out: var(--FULL_ROW);
+  --r6-out: var(--FULL_ROW);
+  --r5-out: var(--FULL_ROW);
+  --r4-out: var(--FULL_ROW);
+  --r3-out: var(--FULL_ROW);
+  --r2-out: var(--FULL_ROW);
+  --r1-out: var(--FULL_ROW);
+  --r0-out: var(--FULL_ROW);
+  --brokethrough-out: 0;
+  --broke-at-out: 0;
+}
+
+.game:has(.game-complete-sequence:hover button:focus:not(:active)),
+.game:has(.game-over-sequence:hover button:focus),
+.game:has(.next-level-prompt:hover .quit-button:focus),
+.game:has(.respawn:hover .quit-button:focus) {
+  --seq-out: var(--START_GAME);
+  --lives-out: 3;
+  --points-total-out: 0;
+}
+
+.game:has(.debug-info-toggle:checked)::after {
+  counter-reset: framex var(--frame-out, 0)
+    palette var(--palette-out, 0)
+    levelx var(--level-out, 0)
+    bao var(--broke-at-out, 0)
+    pto var(--points-total-out, 0)
+    test var(--test-out, 0);
+  content: counter(framex) " "
+    counter(palette) " "
+    counter(levelx) " "
+    counter(bao) " "
+    counter(pto) "\A"
+    counter(test);
+  position: absolute;
+  top: 0;
+  right: 100px;
+  white-space: pre;
+  text-align: right;
+}
+
+.palette {
+  --c1-in: black;
+  --c2-in: black;
+  --c3-in: black;
+  --c1-out: var(--c1-in);
+  --c2-out: var(--c2-in);
+  --c3-out: var(--c3-in);
+}
+.palette:has(.set-palette .phase-capture :nth-child(1):hover) {
+  --c1-out: #8DB3F9;
+  --c2-out: #3EBEFF;
+  --c3-out: #0057F6;
+}
+.palette:has(.set-palette .phase-capture :nth-child(2):hover) {
+  --c1-out: #AEE0AD;
+  --c2-out: #81D012;
+  --c3-out: #05A801;
+}
+.palette:has(.set-palette .phase-capture :nth-child(3):hover) {
+  --c1-out: #F9C3FA;
+  --c2-out: #F878F7;
+  --c3-out: #DB00CD;
+}
+.palette:has(.set-palette .phase-capture :nth-child(4):hover) {
+  --c1-out: #ADC8FA;
+  --c2-out: #5BDB56;
+  --c3-out: #0158F8;
+}
+.palette:has(.set-palette .phase-capture :nth-child(5):hover) {
+  --c1-out: #F4A7C5;
+  --c2-out: #57F898;
+  --c3-out: #E7005B;
+}
+.palette:has(.set-palette .phase-capture :nth-child(6):hover) {
+  --c1-out: #c0edd2;
+  --c2-out: #6B88FF;
+  --c3-out: #3fd37a;
+}
+.palette:has(.set-palette .phase-capture :nth-child(7):hover) {
+  --c1-out: #FABEAD;
+  --c2-out: #7F7F7F;
+  --c3-out: #F73700;
+}
+.palette:has(.set-palette .phase-capture :nth-child(8):hover) {
+  --c1-out: #CEC3FC;
+  --c2-out: #AB0023;
+  --c3-out: #6B47FF;
+}
+.palette:has(.set-palette .phase-capture :nth-child(9):hover) {
+  --c1-out: #8BB2FA;
+  --c2-out: #F73700;
+  --c3-out: #0158F8;
+}
+.palette:has(.set-palette .phase-capture :nth-child(10):hover) {
+  --c1-out: #FABAA7;
+  --c2-out: #FFA347;
+  --c3-out: #F73700;
+}
+.set-palette .phase-capture :nth-child(1) { --palette: 0; }
+.set-palette .phase-capture :nth-child(2) { --palette: 1; }
+.set-palette .phase-capture :nth-child(3) { --palette: 2; }
+.set-palette .phase-capture :nth-child(4) { --palette: 3; }
+.set-palette .phase-capture :nth-child(5) { --palette: 4; }
+.set-palette .phase-capture :nth-child(6) { --palette: 5; }
+.set-palette .phase-capture :nth-child(7) { --palette: 6; }
+.set-palette .phase-capture :nth-child(8) { --palette: 7; }
+.set-palette .phase-capture :nth-child(9) { --palette: 8; }
+.set-palette .phase-capture :nth-child(10) { --palette: 9; }
+
+.set-palette .phase-capture > * {
+  position: absolute;
+  inset: 0;
+  --palette-matches: calc(1 + max(-1, 100000 * min(
+    var(--palette) - var(--palette-out, 0),
+    var(--palette-out, 0) - var(--palette)
+  )));
+  left: calc(100% - var(--palette-matches) * 100%);
+}
+
+.game-over-sequence .msg-1 {
+  --msg: "Beautiful little bit... This journey is long.\A\A"
+    "Know this; The Player Within is The Player Above.\A"
+    "Belief in yourself is guidance from them.\A\A"
+    "You can do this. All five still to go...";
+}
+.game-over-sequence .msg-2 {
+  --msg: "Wonderful little bit! This journey is long.\A\A"
+    "Know this; The Player Within is The Player Above.\A"
+    "Belief in yourself is guidance from them.\A\A"
+    "You can do this. One down, four to go...";
+}
+.game-over-sequence .msg-3 {
+  --msg: "Amazing little bit! This journey is long.\A\A"
+    "Know this; The Player Within is The Player Above.\A"
+    "Belief in yourself is guidance from them!\A\A"
+    "Roughly half way! Two down, three to go...";
+}
+.game-over-sequence .msg-4 {
+  --msg: "Incredible little bit!\A\A"
+    "Know this; The Player Within is The Player Above.\A"
+    "Belief in yourself is guidance from them!\A\A"
+    "HOME STRETCH! Three down, just two to go!";
+}
+.game-over-sequence .msg-5 {
+  --msg: "Little bit, you are truly a marvel!\A\A"
+    "The Player Above is surely proud!\A"
+    "Belief in yourself is guidance from them!\A\A"
+    "Four have gone, the last was this!";
+}
+.game-complete-menu,
+.game-over-menu {
+  overflow: hidden;
+}
+.game-over-sequence .msg-1 { --over: 0; }
+.game-over-sequence .msg-2 { --over: 1; }
+.game-over-sequence .msg-3 { --over: 2; }
+.game-over-sequence .msg-4 { --over: 3; }
+.game-over-sequence .msg-5 { --over: 4; }
+.game-over-sequence .msg {
+  position: absolute;
+  padding-top: calc(var(--row-h) * 2);
+  inset: 0;
+  --over-matches: calc(1 + max(-1, 100000 * min(
+    var(--over) - var(--level-out, 0),
+    var(--level-out, 0) - var(--over)
+  )));
+  left: calc(100% - var(--over-matches) * 100%);
+}
+.game-complete-sequence .msg::before,
+.game-over-sequence .msg::before {
+  content: var(--msg);
+  white-space: pre-wrap;
+}
+
+.game-complete-sequence .msg-1 {
+  --msg: "Little Bit! What an adventure you've had!\A\A"
+    "We were hooked from the moment you spawned.\A"
+    "Following your excitement through the top\A"
+    "again and again!\A\A"
+    "The Player Above, as thrilled as you!";
+}
+.game-complete-sequence .msg-2 {
+  --msg: "Little Bit! What an adventure you've had!!\A\A"
+    "We were hooked from the moment you spawned.\A"
+    "Following your excitement through the top\A"
+    "again and again!\A\A"
+    "~ Would you like another show? ~";
+}
+.game-complete-sequence .msg-3 {
+  --msg: "Little Bit! What an adventure you've had!!!\A"
+    "Through the top again and again!\A\A"
+    "The Player Within is The Player Above;\A"
+    "Belief in yourself is guidance from them!\A\A"
+    "~ You are a treasure of the universe. ~";
+}
+.game-complete-sequence .msg-4 {
+  --msg: "Little bit! You are as incredible\A"
+    "as the adventure you've had!\A\A"
+    "Surely you feel it now!\A"
+    "The Player Within is The Player Above!\A\A"
+    "~ Your guidance has made all the difference. ~";
+}
+.game-complete-sequence .msg-5 {
+  --msg: "Little bit! The universe is in love;\A"
+    "your adventure, as joyous as you!\A\A"
+    "A nearly unshaken belief in yourself is remarkable!\A\A"
+    "~ Your guidance has uplifted us all. ~";
+}
+.game-complete-sequence .msg-6 {
+  --msg: "Little bit! The entire multiverse in awe.\A"
+    "Your unshaken belief in yourself is the unresisted\A"
+    "love of existence itself. A true reflection of\A"
+    "The Player Above. You are magnificent.\A\A"
+    "...You can have any life you imagine,\A"
+    "what sort of life will you choose?";
+}
+.game-complete-sequence .msg-7 {
+  --msg: "Little Bit! What fun you've had!\A\A"
+    "A cheat or two, for the win, through the top,\A"
+    "again and again!\A\A"
+    "The Player Within is The Player Above!\A\A"
+    "~ Your guidance has brought joy to your little bit! ~";
+}
+.game-complete-sequence .msg-1 { --ending: 1; }
+.game-complete-sequence .msg-2 { --ending: 2; }
+.game-complete-sequence .msg-3 { --ending: 3; }
+.game-complete-sequence .msg-4 { --ending: 4; }
+.game-complete-sequence .msg-5 { --ending: 5; }
+.game-complete-sequence .msg-6 { --ending: 6; }
+.game-complete-sequence .msg-7 { --ending: 7; }
+.game-complete-sequence .msg {
+  position: absolute;
+  padding-top: calc(var(--row-h) * 2);
+  --match-value: calc(
+    var(--cheats-active-out) * 7 +
+    (1 - var(--cheats-active-out)) * var(--lives-out, 0)
+  );
+  inset: 0;
+  --ending-matches: calc((1 + max(-1, 100000 * min(
+      var(--ending) - var(--match-value),
+      var(--match-value) - var(--ending)
+    )))
+  );
+  left: calc(100% - var(--ending-matches) * 100%);
+}
+
+.control {
+  position: absolute;
+  inset: 0px;
+  display: grid;
+}
+
+.info-panel {
+  z-index: 6;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(
+    -50%,
+    calc(var(--max-h) * 1px / -2)
+  );
+  width: calc(var(--max-w) * 1px);
+  bottom: auto;
+  height: calc(var(--row-h) * 4 * 5);
+  isolation: isolate;
+}
+.info-panel:has(.info-toggle :checked)::before {
+  content: "";
+  z-index: -1;
+  position: absolute;
+  width: 100vw;
+  height: 100vh;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.info-toggle input { display: none; }
+.info-panel:has(.info-toggle :checked) {
+  height: calc(var(--max-h) * 1px);
+}
+.btn {
+  border: calc(var(--row-h) * 0.2) solid currentColor;
+  border-radius: calc(var(--row-h) * 0.25);
+  padding: 0.5em;
+  font-size: calc(var(--row-h) * 1.75);
+  color: var(--c3-out);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  background: none;
+}
+.btn.btn2 { color: var(--c2-out); }
+.btn:focus::after,
+.btn:hover::after {
+  content: "";
+  background: var(--c2-out);
+  position: absolute;
+  inset: 0;
+  opacity: 0.125;
+}
+.btn:active::after {
+  opacity: 0.25;
+}
+
+.info-toggle:has(input:not(:checked)) {
+  position: absolute;
+  inset: 0;
+  font-size: 0px;
+  z-index: 3;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+.info-toggle:has(input:not(:checked))::after {
+  content: none;
+}
+.info-toggle:has(input:checked) {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--row-h) * 17);
+  padding: calc(var(--row-h) * 1.5);
+  transform-origin: 0px 50%;
+  transform: translateX(calc(var(--row-h) * 11 * var(--scaleX))) scaleX(var(--scaleX));
+  z-index: 6;
+}
+
+.info-panel .menu {
+  position: absolute;
+}
+
+.info-shield-badge {
+  display: block;
+  position: relative;
+  top: calc(var(--row-h) * -0.5);
+}
+.info-shield-badge img {
+  height: calc(var(--row-h) * 3);
+}
+
+.info-cheats {
+  overflow: hidden;
+  height: calc(
+    var(--cheats-active-out) * (
+      var(--row-h) * 8
+    )
+  );
+}
+
+.info-links {
+  position: absolute;
+  bottom: calc(var(--row-h) * 1);
+  left: calc(var(--row-h) * 2);
+}
+.blog-link {
+  display: block;
+  color: var(--c2-out);
+  margin-bottom: calc(var(--row-h) * 1);
+  font-size: calc(var(--row-h) * 1.9);
+}
+.gh-link {
+  display: inline-block;
+  margin-right: calc(var(--row-h) * 6);
+  height: calc(var(--row-h) * 3.25);
+  width: calc(var(--row-h) * 3.25);
+}
+.x-link {
+  display: inline-block;
+  height: calc(var(--row-h) * 3.25);
+  width: calc(var(--row-h) * 3.25);
+}
+.gh-link svg, .x-link svg {
+  height: inherit;
+  width: auto;
+}
+
+.info-toggle:has(input:not(:checked)) ~ * {
+  display: none;
+}
+
+ol, ul, li { list-style: none; }
+.io { position: absolute; inset: 0; overflow: hidden; }
+.io.phase-delay { --phase-delay: -1; }
+.io > .phase-0 { --io: 0; }
+.io > .phase-1 { --io: 1; }
+.io > .phase-2 { --io: 2; }
+.io > .phase-3 { --io: 3; }
+.io > * {
+  position: absolute;
+  inset: 0;
+  --phase-matches: calc(1 + max(-1, 100000 * min(
+    var(--io) - var(--goto, 0),
+    var(--goto, 0) - var(--io)
+  )));
+  left: calc(100% - var(--phase-matches) * 100%);
+}
+.io.phase-delay { --goto: -1; }
+.io.phase-delay > * { z-index: calc((var(--phase-matches) - 0.5) * 2); }
+.io.phase-delay > :first-child:not(:has(button:active)) { z-index: 0; }
+.io.phase-delay:has(> :first-child button:active) { --goto: 0; }
+.io.phase-delay:has(.phase-0:hover) { --goto: 1; }
+.io.phase-delay:has(.phase-1:hover) { --goto: 2; }
+.io.phase-delay:has(.phase-2:hover) { --goto: 3; }
+.io.phase-delay:has(.phase-3:hover) { --goto: 0; }
+
+.io {
+  z-index: 3;
+  --sequence-matches: calc(1 + max(-1, 100000 * min(
+    var(--sequence, 0) - var(--seq-in, 0),
+    var(--seq-in, 0) - var(--sequence, 0)
+  )));
+  left: calc(100% - var(--sequence-matches) * 100%);
+}
+.io.clock {
+  z-index: 1;
+  --sequence: var(--CLOCK);
+}
+.io.respawn {
+  --sequence: var(--RESPAWN);
+  --background: rgba(0, 255, 128, 0.25);
+}
+.io.start-game {
+  --sequence: var(--START_GAME);
+  --background: rgba(0, 255, 0, 0.25);
+}
+.menu {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  bottom: auto;
+  display: block;
+  width: calc(var(--row-h) * 12 * 4);
+  height: calc(var(--row-h) * 28);
+  transform-origin: 50% 50%;
+  transform: translate(-50%, calc(var(--row-h) * 4)) scaleX(var(--scaleX));
+  font-size: calc(var(--row-h) * 2);
+  line-height: 1em;
+  text-align: center;
+  background: white;
+  padding-block: calc(var(--row-h) * 2);
+  outline: calc(var(--row-h) * 0.1) solid var(--c3-out);
+}
+button {
+  padding: 0.5em;
+  font-size: inherit;
+}
+.menu button,
+.menu a.btn {
+  position: absolute;
+  bottom: calc(var(--row-h) * 2);
+  height: calc(var(--row-h) * 6);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.menu .continue-button,
+.menu .respawn-button {
+  transform: translateX(calc(-100% - (var(--row-h) / 2)));
+}
+.menu .quit-button {
+  transform: translateX(calc(var(--row-h) / 2));
+}
+.menu .follow-button {
+  padding-top: 1em!important;
+  font-size: calc(var(--row-h) * 1.75);
+  transform: translateX(calc(-100% - (var(--row-h) / 2)))!important;
+}
+.respawn-img {
+  display: inline-block;
+  vertical-align: middle;
+  --img-size: calc(var(--row-h) * 3);
+  height: var(--img-size);
+  width: var(--img-size);
+  --mask: url(
+    "https://propjockey.github.io/css-bin-bits/assets/propjockey.png"
+  ) 50% 50% / var(--img-size) var(--img-size) no-repeat;
+  -webkit-mask: var(--mask);
+  mask: var(--mask);
+  background: linear-gradient(var(--c2-out) 0 100%), var(--mask);
+  background-blend-mode: color, normal;
+  opacity: 0.5;
+}
+.cheats-unlocker {
+  display: block;
+  font-size: calc(var(--row-h) * 1.75);
+  text-decoration: none;
+  color: white;
+}
+.cheats-unlocker .unlock { color: var(--c2-out); }
+.cheats-unlocker:visited .unlock { color: white; }
+.cheats-unlocker .unlocked { color: white; }
+.cheats-unlocker:visited .unlocked { color: var(--c2-out); }
+
+label:not(.info-toggle) {
+  font-size: calc(var(--row-h) * 1.9);
+  width: calc(var(--row-h) * 4 * 7);
+  display: block;
+  text-align: left;
+  cursor: pointer;
+}
+label[for="constrain-toggle"]::before {
+  content: "";
+  --show-toggle: var(--constrain);
+}
+label[for="paper-bricks"]::before {
+  content: "";
+  --show-toggle: var(--rip-through-mode);
+}
+label[for="infinite-lives"]::before {
+  content: "";
+  --show-toggle: var(--infinite-lives);
+}
+label[for="zero-deaths"]::before {
+  content: "";
+  --show-toggle: var(--zero-deaths);
+}
+label::before {
+  display: inline-block;
+  border: calc(var(--row-h) * 0.1) solid var(--c3-out);
+  background: linear-gradient(
+    transparent 0 calc(100% * (1 - var(--show-toggle))),
+    var(--c2-out) calc(100% * (1 - var(--show-toggle))) 100%
+  );
+}
+label::before,
+input[type="checkbox"] {
+  width: calc(var(--row-h) * 1.5);
+  height: calc(var(--row-h) * 1.5);
+}
+fieldset,
+:not(fieldset) > label:not(.info-toggle) {
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: calc(var(--row-h) * 0.5);
+}
+.cheats {
+  position: absolute;
+  font-size: calc(var(--row-h) * 0.9);
+  bottom: calc(var(--row-h) * 1.5);
+  right: calc(var(--row-h) * 2);
+  cursor: default;
+  text-decoration: none;
+  color: white;
+}
+.cheats:visited {
+  color: var(--c2-out);
+}
+.start-menu:has(#cheats:target) .cheats {
+  display: none;
+}
+#cheats {
+  display: none;
+}
+legend {
+  padding: calc(var(--row-h) * 0.5);
+  margin-left: calc(var(--row-h) * 2);
+  font-size: calc(var(--row-h) * 2);
+}
+#cheats:target {
+  display: block;
+  font-size: calc(var(--row-h) * 0.9);
+  right: calc(var(--row-h) * 2);
+  width: calc(var(--row-h) * 4 * 8);
+  padding-inline: calc(var(--row-h) * 2);
+  padding-block: calc(var(--row-h) * 0.75);
+  text-align: left;
+  position: absolute;
+  top: 25%;
+}
+.io.next-level-prompt {
+  --sequence: var(--NEXT_LEVEL_PROMPT);
+}
+.io.next-level-sequence {
+  --sequence: var(--NEXT_LEVEL);
+  --background: rgba(255, 0, 0, 0.25);
+}
+.io.set-palette {
+  --sequence: var(--SET_PALETTE);
+  --background: rgba(0, 0, 0, 0.75);
+}
+.io.game-over-sequence {
+  --sequence: var(--GAME_OVER);
+  --background: lime;
+}
+.io.game-complete-sequence {
+  --sequence: var(--GAME_COMPLETE);
+  --background: hotpink;
+  /* 6 different endings, based on number of lives remaining */
+  /* [Play again!] [Follow Jane Ori] */
+}
+
+.game:has(.phase-0:hover) {
+  --tick-hoist: paused;
+  --tick-capture: running;
+  --goto: 1;
+}
+.game:has(.phase-1:hover) {
+  --tick-hoist: paused;
+  --tick-capture: paused;
+  --goto: 2;
+}
+.game:has(.phase-2:hover) {
+  --tick-hoist: running;
+  --tick-capture: paused;
+  --goto: 3;
+}
+.game:has(.phase-3:hover) {
+  --tick-hoist: paused;
+  --tick-capture: paused;
+  --goto: 0;
+}
+.game {
+  --tick-hoist: paused;
+  --tick-capture: paused;
+  animation: io-hoist 1ms linear both var(--tick-hoist),
+             io-capture 1ms linear both var(--tick-capture);
+}
+@keyframes io-hoist {
+  0%, 100% {
+    --frame-in: var(--frame-held, 0);
+    --guide-x-in: var(--guide-x-held, 0);
+    --guide-y-in: var(--guide-y-held, 0);
+    --prev-guidexin-in: var(--prev-guidexin-held, 0);
+    --seq-in: var(--seq-held, var(--START_GAME));
+    --palette-in: var(--palette-held, 0);
+    --level-in: var(--level-held, 0);
+    --lives-in: var(--lives-held, 3);
+    --cheats-active-in: var(--cheats-active-held, 0);
+    
+    --brokethrough-in: var(--brokethrough-held, 0);
+    --broke-at-in: var(--broke-at-held, 0);
+
+    --points-total-in: var(--points-total-held, 0);
+    --can-break-in: var(--can-break-held, 1);
+    --can-guide-in: var(--can-guide-held, 1);
+
+    --test-in: var(--test-held, 0);
+    
+    --c1-in: var(--c1-held, black);
+    --c2-in: var(--c2-held, black);
+    --c3-in: var(--c3-held, black);
+    
+    --r7: var(--r7-held, 16383); /* 0b 11 11 11 11 11 11 11 */
+    --r6: var(--r6-held, 16383);
+    --r5: var(--r5-held, 16383);
+    --r4: var(--r4-held, 16383);
+    --r3: var(--r3-held, 16383);
+    --r2: var(--r2-held, 16383);
+    --r1: var(--r1-held, 16383);
+    --r0: var(--r0-held, 16383);
+    
+    --bit-x-in: var(--bit-x-held, 0); /* 0 to 55 */
+    --bit-y-in: var(--bit-y-held, 0); /* 0 to 95 */
+    --bit-speed-in: var(--bit-speed-held, 0);
+    --bit-dir-in: var(--bit-dir-held, -45deg);
+  }
+}
+@keyframes io-capture {
+  0%, 100% {
+    --frame-held: var(--frame-out);
+    --guide-x-held: var(--guide-x-out);
+    --guide-y-held: var(--guide-y-out);
+    --prev-guidexin-held: var(--prev-guidexin-out);
+    --seq-held: var(--seq-out);
+    --palette-held: var(--palette-out);
+    --level-held: var(--level-out);
+    --lives-held: var(--lives-out);
+    --cheats-active-held: var(--cheats-active-out);
+    
+    --brokethrough-held: var(--brokethrough-out);
+    --broke-at-held: var(--broke-at-out);
+    
+    --points-total-held: var(--points-total-out);
+    --can-break-held: var(--can-break-out);
+    --can-guide-held: var(--can-guide-out);
+
+    --test-held: var(--test-out);
+    
+    --c1-held: var(--c1-out);
+    --c2-held: var(--c2-out);
+    --c3-held: var(--c3-out);
+    
+    --r7-held: var(--r7-out);
+    --r6-held: var(--r6-out);
+    --r5-held: var(--r5-out);
+    --r4-held: var(--r4-out);
+    --r3-held: var(--r3-out);
+    --r2-held: var(--r2-out);
+    --r1-held: var(--r1-out);
+    --r0-held: var(--r0-out);
+
+    --bit-x-held: var(--bit-x-out);
+    --bit-y-held: var(--bit-y-out);
+    --bit-speed-held: var(--bit-speed-out);
+    --bit-dir-held: var(--bit-dir-out);
+  }
+}
+@property --CLOCK { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --START_GAME { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --RESPAWN { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --SET_PALETTE { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --NEXT_LEVEL_PROMPT { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --NEXT_LEVEL { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --GAME_COMPLETE { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --GAME_OVER { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --MAX_X { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --MAX_Y { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --INIT_BIT_X { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --INIT_BIT_Y { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --INIT_SPEED { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --INIT_DIR { syntax: "<angle>"; initial-value: 0deg; inherits: true; }
+@property --MAX_DELTA_Y { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --MAX_DELTA_X { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --MAX_SPEED { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --INIT_GUIDE_X { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --INIT_GUIDE_Y { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+
+@property --guide-x-out { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --guide-y-out { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --prev-guidexin-out { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+
+@property --frame-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --palette-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --level-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --lives-out { syntax: "<integer>"; initial-value: 3; inherits: true; }
+
+@property --brokethrough-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --broke-at-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --level-changed { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+/* 16383 = 0b 11 11 11 11 11 11 11 */
+@property --FULL_ROW  { syntax: "<integer>"; initial-value: 16383; inherits: true; }
+
+@property --has-broke-through { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --c1-out { syntax: "<color>"; initial-value: black; inherits: true; }
+@property --c2-out { syntax: "<color>"; initial-value: black; inherits: true; }
+@property --c3-out { syntax: "<color>"; initial-value: black; inherits: true; }
+
+@property --bit-x-raw-delta { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-x-delta-sign { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-x-use-delta { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-y-raw-delta { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-y-delta-sign { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-y-use-delta { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+
+@property --bit-x-out { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-y-out { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+
+@property --current-guide-speed { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --cgs-abs-scale { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-guide-hit-in-middle { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-hit-slow-guide-mid { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-speed-delta { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-speed-out { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+
+@property --bit-dir-next { syntax: "<angle>"; initial-value: 0deg; inherits: true; }
+
+@property --bit-dir-out { syntax: "<angle>"; initial-value: 0deg; inherits: true; }
+@property --bit-needs-our-help { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --bit-x-next { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-x-clamped { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-x-wall-collided { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-y-next { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-y-clamped { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --top-to-bottom { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-y-clamped-collision {
+  syntax: "<number>"; initial-value: 0; inherits: true;
+}
+
+@property --bit-guide-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-guide-x-collision-dir { syntax: "<number>"; initial-value: 0; inherits: true; }
+
+@property --use-y-clamp { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --rip-through-mode { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --infinite-lives { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --zero-deaths { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --y-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --both-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --no-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --only-x-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --only-y-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --bit-y-center { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --bit-x-center { syntax: "<number>"; initial-value: 0.0; inherits: true; }
+@property --brick-wall-t-and-h { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --bit-y-rel-to-brick-top {
+  syntax: "<number>"; initial-value: 0.0; inherits: true;
+}
+@property --bit-on-brick-wall { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --INTdex { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --row-val { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --INTdex2 { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --brick-collision { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --can-break-out { syntax: "<integer>"; initial-value: 1; inherits: true; }
+@property --can-guide-out { syntax: "<integer>"; initial-value: 1; inherits: true; }
+@property --bit-above-guide { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --cheats-active-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --r7-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r6-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r5-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r4-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r3-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r2-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r1-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r0-needs-update { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --test-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --r7-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r6-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r5-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r4-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r3-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r2-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r1-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --r0-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --seq-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --palette-matches { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --over-matches { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --ending-matches { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --phase-matches { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --sequence-matches { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --row-points-INTdex {
+  syntax: "<integer>"; initial-value: 0; inherits: true;
+}
+@property --points-total-out { syntax: "<integer>"; initial-value: 0; inherits: true; }
+
+@property --rows { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --cols { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --row-h { syntax: "<length>"; initial-value: 0px; inherits: true; }
+@property --col-w { syntax: "<length>"; initial-value: 0px; inherits: true; }
+
+@property --constrain { syntax: "<integer>"; initial-value: 0; inherits: true; }
+@property --max-h { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --max-w { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --scaleX { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --use-guide-x { syntax: "<number>"; initial-value: 0; inherits: true; }
+@property --use-guide-y { syntax: "<number>"; initial-value: 0; inherits: true; }
+
+/* #################################################### */
+
+.pj {
+  position: absolute;
+  --img-size: calc(var(--row-h) * 5);
+  width: calc(var(--img-size) * 1.1 * var(--lives-out, 8));
+  height: var(--img-size);
+  top: calc(var(--row-h) * 5.5);
+  right: calc(var(--row-h) * 2);
+  --mask: url(
+    "https://propjockey.github.io/css-bin-bits/assets/propjockey.png"
+  ) 100% 0% / var(--img-size) var(--img-size) space no-repeat;
+  -webkit-mask: var(--mask);
+  mask: var(--mask);
+  background: linear-gradient(var(--accent) 0 100%), var(--mask);
+  background-blend-mode: color, normal;
+  opacity: 0.5;
+  transform-origin: 100% 50%;
+}
+.breaksplash::after {
+  content: "Cheats Available!";
+  position: absolute;
+  top: calc(var(--row-h) * 2 * 5.5);
+  right: calc(var(--row-h) * 2.5);
+  text-align: center;
+  overflow: hidden;
+  height: calc(var(--row-h) * 3 * var(--cheats-active-out));
+  font-size: calc(var(--row-h) * 2);
+  color: var(--c3-out);
+  transform-origin: 100% 50%;
+  transform: scaleX(var(--scaleX));
+}
+
+.pj, .points {
+  transform: scaleX(var(--scaleX));
+}
+
+.points {
+  transform-origin: 0% 50%;
+  position: absolute;
+  left: calc(var(--row-h) * 2);
+  top: calc(var(--row-h) * 4);
+  font-size: calc(var(--row-h) * 6.5);
+  font-weight: bold;
+  color: var(--c3-out);
+  --ts1: 0 0 2vmin var(--c1-out);
+  --ts2: 0 0 1vmin rgb(var(--trim-rgb));
+  text-shadow: var(--ts2), var(--ts2), var(--ts2), var(--ts2), var(--ts1), var(--ts1);
+}
+.points::before {
+  counter-reset: points var(--points-total-out, 0);
+  content: counter(points);
+}
+
+.board {
+  /* max score per level is 448 points (all 112 bricks) */
+  position: relative;
+  grid-area: 1 / 1;
+  --trim-rgb-inverted: 255 255 255;
+  --trim-rgb: 255 255 255;
+  --bg-rgb: var(--trim-rgb);
+  --bg: rgb(var(--bg-rgb));
+  --joyous-bg: linear-gradient(
+    to top left,
+    var(--c3-out, black) 0% 33%,
+    var(--c1-out, black) 45% 55%,
+    var(--c2-out, black) 66%
+  ) fixed;
+  --accent: var(--c2-out);
+  top: 0;
+  bottom: 0;
+  width: calc(1px * var(--max-w));
+  height: calc(1px * var(--max-h));
+  margin: auto;
+  clip-path: inset(0px);
+  isolation: isolate;
+}
+.board::after {
+  content: "";
+  position: absolute;
+  inset: calc(-2vmin + 0.5px);
+  height: 140%;
+  border: 2vmin solid var(--bg);
+  pointer-events: none;
+}
+
+.joyous-color {
+  --bg: var(--joyous-bg);
+  filter: blur(1vmin);
+}
+.joyous-color::after {
+  content: "";
+  position: absolute;
+  --w: 2vmin;
+  inset: calc(var(--w) * -1);
+  height: 140%;
+  background: var(--bg);
+  pointer-events: none;
+  --mask: linear-gradient(
+    to right,
+    black 0 var(--w),
+    transparent var(--w) calc(100% - var(--w)),
+    black calc(100% - var(--w)) 100%
+  ), linear-gradient(
+    to bottom,
+    black 0 var(--w),
+    transparent var(--w)
+  );
+  -webkit-mask: var(--mask);
+  mask: var(--mask);
+}
+
+.bricks {
+  position: absolute;
+  width: 100%;
+  height: calc(var(--row-h) * 8 * 2);
+  top: calc(var(--row-h) * 8 * 2);
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(8, 1fr);
+}
+
+[data-points="7"] { --pts: 7; } /* attr() pls */
+[data-points="5"] { --pts: 5; }
+[data-points="3"] { --pts: 3; }
+[data-points="1"] { --pts: 1; }
+.bricks > * {
+  --b-w: calc(var(--col-w) * 4); /* brick width */
+  opacity: calc((8 + var(--pts, 1)) / 14);
+
+  background: var(--bg);
+  --mask: linear-gradient(
+    to left,
+    rgba(var(--bg-rgb) / var(--bin-a-14)) calc(var(--b-w) * 0) calc(var(--b-w) * 1),
+    rgba(var(--bg-rgb) / var(--bin-a-13)) calc(var(--b-w) * 1) calc(var(--b-w) * 2),
+    rgba(var(--bg-rgb) / var(--bin-a-12)) calc(var(--b-w) * 2) calc(var(--b-w) * 3),
+    rgba(var(--bg-rgb) / var(--bin-a-11)) calc(var(--b-w) * 3) calc(var(--b-w) * 4),
+    rgba(var(--bg-rgb) / var(--bin-a-10)) calc(var(--b-w) * 4) calc(var(--b-w) * 5),
+    rgba(var(--bg-rgb) / var(--bin-a-9)) calc(var(--b-w) * 5) calc(var(--b-w) * 6),
+    rgba(var(--bg-rgb) / var(--bin-a-8)) calc(var(--b-w) * 6) calc(var(--b-w) * 7),
+    rgba(var(--bg-rgb) / var(--bin-a-7)) calc(var(--b-w) * 7) calc(var(--b-w) * 8),
+    rgba(var(--bg-rgb) / var(--bin-a-6)) calc(var(--b-w) * 8) calc(var(--b-w) * 9),
+    rgba(var(--bg-rgb) / var(--bin-a-5)) calc(var(--b-w) * 9) calc(var(--b-w) * 10),
+    rgba(var(--bg-rgb) / var(--bin-a-4)) calc(var(--b-w) * 10) calc(var(--b-w) * 11),
+    rgba(var(--bg-rgb) / var(--bin-a-3)) calc(var(--b-w) * 11) calc(var(--b-w) * 12),
+    rgba(var(--bg-rgb) / var(--bin-a-2)) calc(var(--b-w) * 12) calc(var(--b-w) * 13),
+    rgba(var(--bg-rgb) / var(--bin-a-1)) calc(var(--b-w) * 13) calc(var(--b-w) * 14)
+  );
+  -webkit-mask: var(--mask);
+  mask: var(--mask);
+}
+:not(.joyous-color) > .bricks > * {
+  position: relative;
+  overflow: hidden;
+}
+.byline-top-half,
+.byline-bottom-half {
+  position: absolute;
+  transform-origin: 0% 50%;
+  font-size: calc(var(--row-h) * 2);
+  padding-left: var(--row-h);
+  vertical-align: baseline;
+  color: var(--c3-out);
+  display: block;
+  ---width: 100%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.byline-top-half .img,
+.byline-bottom-half .img {
+  vertical-align: top;
+  height: calc(var(--row-h) * 2.25);
+  display: inline-block;
+  position: relative;
+  left: calc(var(--row-h) * 0.8);
+  aspect-ratio: 170 / 18;
+  --mask: url(
+    "https://img.shields.io/badge/Jane%20Ori%20%F0%9F%91%BD-%F0%9F%A4%8D%20PropJockey.io-7300E6.svg?labelColor=FB04C2&style=plastic"
+  ) 100% 0% / 100% 100% no-repeat;
+  -webkit-mask: var(--mask);
+  mask: var(--mask);
+  background: linear-gradient(var(--accent) 0 100%), var(--mask);
+  background-blend-mode: color, normal;
+  opacity: 0.5;
+}
+
+.byline-top-half {
+  top: 100%;
+  transform: translate(0%, -50%) scaleX(var(--scaleX));
+}
+.byline-bottom-half {
+  bottom: 100%;
+  transform: translate(0%, 50%) scaleX(var(--scaleX));
+}
+
+.joyous-color .bricks > * {
+  opacity: 1;
+}
+
+.bit {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  transform-origin: 50% 50%;
+  --scale: 1;
+  transform: translate(
+    calc(var(--bit-x-in) * var(--col-w)),
+    calc(var(--bit-y-in) * var(--row-h))
+  ) scale(var(--scale));
+  background: var(--bg);
+  width: var(--col-w);
+  height: var(--row-h);
+}
+.joyous-color > .bit {
+  --scale: 1.5;
+}
+.board:not(.joyous-color) > .bit {
+  outline: 0.3vmin solid var(--accent);
+  outline-offset: -0.3vmin;
+  background: var(--bg);
+  --ds: drop-shadow(0 0 0.5vmin var(--accent));
+  filter: var(--ds) var(--ds);
+}
+.board:not(.joyous-color)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0px;
+  --mbg: rgba(128, 128, 128, 0.075);
+  --centered: 0; /* 1 or 0 */
+  --m2tc: - 2 * var(--centered);
+  --t4m2tc: * (4 var(--m2tc));
+  --t8m2tc: * (8 var(--m2tc));
+  --mask: repeating-linear-gradient(
+    to right,
+    var(--mbg) 0 calc(var(--col-w) var(--t4m2tc)),
+    transparent calc(var(--col-w) var(--t4m2tc)) calc(var(--col-w) var(--t8m2tc))
+  ) 0px 0px / calc(var(--col-w) * 8) var(--row-h),
+  repeating-linear-gradient(
+    to bottom,
+    var(--mbg) 0 calc(var(--row-h) var(--t4m2tc)),
+    transparent calc(var(--row-h) var(--t4m2tc)) calc(var(--row-h) var(--t8m2tc))
+  ) 0px 0px / var(--col-w) calc(var(--row-h) * 8);
+  -webkit-mask: var(--mask);
+  mask: var(--mask);
+  background: var(--joyous-bg);
+}
+
+.breaksplash {
+  position: absolute;
+  inset: -1px;
+  /* breakthrough-animated */
+  background: radial-gradient(
+    circle at calc(var(--broke-at-out) * var(--col-w)) 100%,
+    transparent 0px calc((var(--brokethrough-out) - 10) * 1.25vw),
+    var(--bg) calc((var(--brokethrough-out) - 5) * 1.25vw),
+    var(--c2-out) calc((var(--brokethrough-out) - 3) * 1.25vw),
+    var(--c1-out),
+    var(--c3-out) calc((var(--brokethrough-out) - 2) * 1.25vw),
+    var(--bg) calc((var(--brokethrough-out) - 1) * 1.25vw)
+  ) top left / 100% calc(var(--row-h) * 2 * 8 + 1px) no-repeat;
+}
+
+.paddle {
+  width: calc(var(--col-w) * 4);
+  outline: 0.2vmin solid var(--c1-out);
+  outline-offset: -0.2vmin;
+
+  height: calc(var(--row-h) * 2);
+  --use-guide-x: calc(
+    min(1, var(--seq-out)) * var(--guide-x-out) +
+    (1 - min(1, var(--seq-out))) * var(--guide-x-in)
+  );
+  --use-guide-y: calc(
+    min(1, var(--seq-out)) * var(--guide-y-out) +
+    (1 - min(1, var(--seq-out))) * var(--guide-y-in)
+  );
+  
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  transform: translate(
+    calc(var(--use-guide-x) * var(--col-w)),
+    calc(var(--use-guide-y) * var(--row-h))
+  );
+
+  background: var(--bg);
+
+  --ds: drop-shadow(0 0 0.5vmin var(--accent));
+  filter: var(--ds) var(--ds);
+}
+.joyous-color .paddle {
+  background: var(--c1-out);
+  filter: none;
+}
+
+.game:not(:hover) {
+  --c2-out: black;
+  /* --c1-out: black; */
+  --c3-out: black;
+}
+
+.css-screensize {
+  --enable: 1;
+  --opacity: 0.8;
+  --background: white;
+  --prompt: "100% CSS Breakout\A\Aplease :hover to calibrate";
+  --confirm: "100% CSS Breakout\A\A~ calibrating ~";
+  font-size: 2vmin;
+}
