@@ -4,6 +4,9 @@
 
 Breakout implemented in 100% CSS
 
+Read about how this was done here:
+https://dev.to/janeori/expert-css-the-cpu-hack-4ddj
+
 Play it here!
 https://propjockey.github.io/css-breakout/
 
