@@ -1,5 +1,5 @@
 @import url("https://unpkg.com/css-screensize@1/screensize.css");
-@import url("https://unpkg.com/css-bin-bits@0.0.2/bin-bits.css");
+@import url("https://unpkg.com/css-bin-bits@0.0.3/bin-bits.css");
 
 * {
   box-sizing: border-box;
